@@ -10,7 +10,7 @@ namespace HookedMethod
 {
     using Hook = HookedMethod;
 
-    class HookedMethod
+    public class HookedMethod
     {
         /// <summary>
         /// A detour used when hooking a method.
@@ -26,7 +26,7 @@ namespace HookedMethod
             /// </summary>
             /// <param name="args">The arguments to be passed</param>
             /// <returns>The trampoline's return value, casted to an object.</returns>
-            delegate object CompiledTrampoline(object self, params object[] args);
+            delegate object CompiledTrampoline(params object[] args);
 
             CompiledTrampoline trampoline;
 
@@ -34,21 +34,22 @@ namespace HookedMethod
             /// Use Linq.Expressions to "compile" a method returned by RuntimeDetour into a statically-typed delegate. This has better performace than a simple Method.Invoke.
             /// </summary>
             /// <param name="del">The method being called.</param>
-            internal OriginalMethod(MethodBase method) {
-                var self = Expression.Parameter(typeof(object), "self");
-                var args = Expression.Parameter(typeof(object[]), "args");
+            internal OriginalMethod(Delegate method) {
+                /*var args = Expression.Parameter(typeof(object[]), "args");
 
                 List<Expression> passedArgs = new List<Expression>();
 
-                foreach (var e in method.GetParameters()) {
+                foreach (var e in method.Method.GetParameters()) {
                     passedArgs.Add(Expression.Convert(Expression.ArrayAccess(args, Expression.Constant(e.Position)), e.ParameterType));
                 }
 
-                var call = Expression.Call(self, method as MethodInfo, passedArgs);
+                var call = Expression.Call(Expression.Constant(null), method.Method as MethodInfo, passedArgs);
 
                 var convert = Expression.Convert(call, typeof(object));
 
-                trampoline = Expression.Lambda<CompiledTrampoline>(call).Compile();
+                trampoline = Expression.Lambda<CompiledTrampoline>(call).Compile();*/
+
+                trampoline = args => method.DynamicInvoke(args); // TO-DO: FIX THIS
             }
 
             /// <summary>
@@ -79,7 +80,7 @@ namespace HookedMethod
     
         static Dictionary<Guid, CompiledDetour> compiledDetoursByID = new Dictionary<Guid, CompiledDetour>();
     
-        static object callCompiledDetour(string id, params object[] args) {
+        public static object callCompiledDetour(string id, params object[] args) {
             return compiledDetoursByID[Guid.Parse(id)](args);
         }
     
@@ -117,7 +118,7 @@ namespace HookedMethod
             }
 
             generator.Emit(OpCodes.Ldloc, argsArr);
-            generator.EmitCall(OpCodes.Call, typeof(HookedMethod).GetMethod("callCompiledDetour"), null);
+            generator.Emit(OpCodes.Call, typeof(HookedMethod).GetMethod("callCompiledDetour"));
 
             if (origMethod.ReturnType.IsValueType) {
                 generator.Emit(OpCodes.Unbox_Any, origMethod.ReturnType);
@@ -158,10 +159,14 @@ namespace HookedMethod
                 getType = Expression.GetFuncType;
                 types = types.Concat(new[] { ((MethodInfo)infoWithDef).ReturnType });
             }
+            
+            var RTDetour = typeof(RuntimeDetour).GetMethods().Single(e => e.Name == "Detour" && e.GetParameters()[0].ParameterType == typeof(MethodBase) && e.GetParameters()[1].ParameterType == typeof(MethodBase) && e.IsGenericMethod).MakeGenericMethod(getType(types.ToArray()));
 
-            var RTDetour = typeof(RuntimeDetour).GetMethod("Detour", new[] {typeof(MethodBase), typeof(MethodBase)}).MakeGenericMethod(getType(types.ToArray()));
+            var rawTrampoline = RTDetour.Invoke(null, new object[] {((MethodBase) ((MethodInfo) infoWithDef)), generateRawDetour(detour, infoWithDef, trampoline)});
 
-            trampoline.Item1 = new OriginalMethod((MethodBase) RTDetour.Invoke(null, new object[] {infoWithDef, generateRawDetour(detour, infoWithDef, trampoline)}));
+            trampoline.Item1 = new OriginalMethod((Delegate) rawTrampoline);
+
+            Console.WriteLine(generateRawDetour(detour, infoWithDef, trampoline).Invoke(null, new object[] {3, 5}));
         }
     }
 }
