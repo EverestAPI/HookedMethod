@@ -21,8 +21,7 @@ x64/
 x86/
 bld/
 [Bb]in/
-# The dotnet CLI uses this for non-build stuff
-# [Oo]bj/
+[Oo]bj/
 [Ll]og/
 
 # Visual Studio 2015/2017 cache/options directory
