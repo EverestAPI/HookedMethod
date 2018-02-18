@@ -104,7 +104,7 @@ namespace HookedMethod
     
             generator.Emit(OpCodes.Nop);
             generator.Emit(OpCodes.Ldstr, compiledDetourID.ToString());
-            generator.Emit(OpCodes.Ldc_I4, origMethod.GetParameters().Length);
+            generator.Emit(OpCodes.Ldc_I4, parameters.Length);
             generator.Emit(OpCodes.Newarr, typeof(object));
             generator.Emit(OpCodes.Stloc, argsArr);
 
