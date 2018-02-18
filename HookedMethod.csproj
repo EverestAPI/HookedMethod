@@ -4,7 +4,9 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
   </PropertyGroup>
   <ItemGroup>
+    <Reference Include="MonoMod.exe"/>
     <PackageReference Include="Mono.Cecil" Version="0.10.0-beta7"/>
-    <CSFile Include="*.cs" Exclude="bin\**;obj\**;Examples\**" />
+    <PackageReference Include="System.Reflection.Emit.Lightweight" Version="4.3.0"/>
+    <CSFile Include="*.cs" Exclude="bin\**;obj\**;Examples\**"/>
   </ItemGroup>
 </Project>
