@@ -104,9 +104,9 @@ namespace HookedMethod
             generator.Emit(OpCodes.Ldstr, compiledDetourID.ToString());
             generator.Emit(OpCodes.Ldc_I4, trampoline.Method.GetParameters().Length);
             generator.Emit(OpCodes.Newarr, typeof(object));
-            generator.Emit(OpCodes.Stloc, argsArr.LocalIndex);
+            generator.Emit(OpCodes.Stloc, argsArr);
             foreach (var e in trampoline.Method.GetParameters()) {
-                generator.Emit(OpCodes.Ldloc, argsArr.LocalIndex);
+                generator.Emit(OpCodes.Ldloc, argsArr);
                 generator.Emit(OpCodes.Ldc_I4, e.Position);
                 generator.Emit(OpCodes.Ldarg, e.Position);
 
@@ -117,7 +117,7 @@ namespace HookedMethod
                 generator.Emit(OpCodes.Stelem, typeof(object));
             }
 
-            generator.Emit(OpCodes.Ldloc, argsArr.LocalIndex);
+            generator.Emit(OpCodes.Ldloc, argsArr);
             generator.EmitCall(OpCodes.Call, typeof(HookedMethod).GetMethod("callCompiledDetour"), null);
 
             if (trampoline.Method.ReturnType.IsValueType) {
