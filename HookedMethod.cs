@@ -18,7 +18,7 @@ namespace HookedMethod
         /// <param name="orig">The original method, encapsulated in an OriginalMethod.</param>
         /// <param name="args">The arguments passed to the method, encapsulated in a Parameters object.</param>
         /// <returns>The detoured result.</returns>
-        public delegate object Detour(OriginalMethod orig, Parameters args);
+        public delegate object Detour(HookedMethod hook, OriginalMethod orig, Parameters args);
 
         public class OriginalMethod {
             /// <summary>
@@ -26,24 +26,25 @@ namespace HookedMethod
             /// </summary>
             /// <param name="args">The arguments to be passed</param>
             /// <returns>The trampoline's return value, casted to an object.</returns>
-            delegate object CompiledTrampoline(params object[] args);
+            delegate object CompiledTrampoline(object self, params object[] args);
 
             CompiledTrampoline trampoline;
 
             /// <summary>
-            /// Use Linq.Expressions to "compile" the Delegate returned by RuntimeDetour into a statically-typed delegate. This has better performace than a simple Delegate.DynamicInvoke.
+            /// Use Linq.Expressions to "compile" a method returned by RuntimeDetour into a statically-typed delegate. This has better performace than a simple Method.Invoke.
             /// </summary>
-            /// <param name="del">The Delegate being compiled.</param>
-            internal OriginalMethod(Delegate del) {
+            /// <param name="del">The method being called.</param>
+            internal OriginalMethod(MethodBase method) {
+                var self = Expression.Parameter(typeof(object), "self");
                 var args = Expression.Parameter(typeof(object[]), "args");
 
                 List<Expression> passedArgs = new List<Expression>();
 
-                foreach (var e in del.Method.GetParameters()) {
+                foreach (var e in method.GetParameters()) {
                     passedArgs.Add(Expression.Convert(Expression.ArrayAccess(args, Expression.Constant(e.Position)), e.ParameterType));
                 }
 
-                var call = Expression.Call(Expression.Convert(Expression.Constant(del.Target), del.Method.DeclaringType), del.Method, passedArgs);
+                var call = Expression.Call(self, method as MethodInfo, passedArgs);
 
                 var convert = Expression.Convert(call, typeof(object));
 
@@ -82,30 +83,28 @@ namespace HookedMethod
             return compiledDetoursByID[Guid.Parse(id)](args);
         }
     
-        static CompiledDetour compileDetour(Detour detour, OriginalMethod original) {
-            return args => detour(original, new Parameters(args));
+        CompiledDetour compileDetour(Detour detour, object original) {
+            return args => detour(this, ((ValueTuple<OriginalMethod>)original).Item1, new Parameters(args));
         }
 
-        static MethodBase generateRawDetour(Detour detour, Delegate trampoline) {
-            var origMethod = new OriginalMethod(trampoline);
-
-            CompiledDetour compiledDetour = compileDetour(detour, origMethod);
+        MethodBase generateRawDetour(Detour detour, MethodInfo origMethod, ValueTuple<OriginalMethod> trampoline) {
+            CompiledDetour compiledDetour = compileDetour(detour, trampoline);
  
             var compiledDetourID = Guid.NewGuid();
 
             compiledDetoursByID[compiledDetourID] = compiledDetour;
     
-            DynamicMethod dynamicDetour = new DynamicMethod("MethodModifier_Hook", trampoline.Method.ReturnType, trampoline.Method.GetParameters().Select(e => e.ParameterType).ToArray(), true);
+            DynamicMethod dynamicDetour = new DynamicMethod("Hook", origMethod.ReturnType, origMethod.GetParameters().Select(e => e.ParameterType).ToArray(), true);
             ILGenerator generator = dynamicDetour.GetILGenerator(1024);
     
             var argsArr = generator.DeclareLocal(typeof(object[]));
     
             generator.Emit(OpCodes.Nop);
             generator.Emit(OpCodes.Ldstr, compiledDetourID.ToString());
-            generator.Emit(OpCodes.Ldc_I4, trampoline.Method.GetParameters().Length);
+            generator.Emit(OpCodes.Ldc_I4, origMethod.GetParameters().Length);
             generator.Emit(OpCodes.Newarr, typeof(object));
             generator.Emit(OpCodes.Stloc, argsArr);
-            foreach (var e in trampoline.Method.GetParameters()) {
+            foreach (var e in origMethod.GetParameters()) {
                 generator.Emit(OpCodes.Ldloc, argsArr);
                 generator.Emit(OpCodes.Ldc_I4, e.Position);
                 generator.Emit(OpCodes.Ldarg, e.Position);
@@ -120,19 +119,49 @@ namespace HookedMethod
             generator.Emit(OpCodes.Ldloc, argsArr);
             generator.EmitCall(OpCodes.Call, typeof(HookedMethod).GetMethod("callCompiledDetour"), null);
 
-            if (trampoline.Method.ReturnType.IsValueType) {
-                generator.Emit(OpCodes.Unbox_Any, trampoline.Method.ReturnType);
-            } else if (trampoline.Method.ReturnType == typeof(void)) {
+            if (origMethod.ReturnType.IsValueType) {
+                generator.Emit(OpCodes.Unbox_Any, origMethod.ReturnType);
+            } else if (origMethod.ReturnType == typeof(void)) {
                 generator.Emit(OpCodes.Ldnull);
             } else {
-                generator.Emit(OpCodes.Isinst, trampoline.Method.ReturnType);
+                generator.Emit(OpCodes.Isinst, origMethod.ReturnType);
             }
 
             generator.Emit(OpCodes.Ret);
 
-            Delegate rawDetour = dynamicDetour.CreateDelegate(trampoline.GetType());
+            Func<Type[], Type> getType;
+            var isAction = origMethod.ReturnType.Equals((typeof(void)));
+            var types = origMethod.GetParameters().Select(p => p.ParameterType);
+
+            if (isAction) {
+                getType = Expression.GetActionType;
+            } else {
+                getType = Expression.GetFuncType;
+                types = types.Concat(new[] { origMethod.ReturnType });
+            }
+
+            Delegate rawDetour = dynamicDetour.CreateDelegate(getType(types.ToArray()));
 
             return rawDetour.Method;
+        }
+
+        public HookedMethod(MethodInfoWithDef infoWithDef, Detour detour) {
+            var trampoline = new ValueTuple<OriginalMethod>(null);
+
+            Func<Type[], Type> getType;
+            var isAction = ((MethodInfo)infoWithDef).ReturnType.Equals((typeof(void)));
+            var types = ((MethodInfo)infoWithDef).GetParameters().Select(p => p.ParameterType);
+
+            if (isAction) {
+                getType = Expression.GetActionType;
+            } else {
+                getType = Expression.GetFuncType;
+                types = types.Concat(new[] { ((MethodInfo)infoWithDef).ReturnType });
+            }
+
+            var RTDetour = typeof(RuntimeDetour).GetMethod("Detour", new[] {typeof(MethodBase), typeof(MethodBase)}).MakeGenericMethod(getType(types.ToArray()));
+
+            trampoline.Item1 = new OriginalMethod((MethodBase) RTDetour.Invoke(null, new object[] {infoWithDef, generateRawDetour(detour, infoWithDef, trampoline)}));
         }
     }
 }
