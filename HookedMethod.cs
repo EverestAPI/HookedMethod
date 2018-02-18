@@ -93,7 +93,11 @@ namespace HookedMethod
 
             compiledDetoursByID[compiledDetourID] = compiledDetour;
     
-            DynamicMethod dynamicDetour = new DynamicMethod("Hook", origMethod.ReturnType, origMethod.GetParameters().Select(e => e.ParameterType).ToArray(), true);
+            var parameters = origMethod.GetParameters().Select(e => e.ParameterType).ToArray();
+            
+            if (!origMethod.Attributes.HasFlag(MethodAttributes.Static)) parameters = new[] {origMethod.DeclaringType}.Concat(parameters).ToArray();
+
+            DynamicMethod dynamicDetour = new DynamicMethod("Hook", origMethod.ReturnType, parameters, true);
             ILGenerator generator = dynamicDetour.GetILGenerator(1024);
     
             var argsArr = generator.DeclareLocal(typeof(object[]));
@@ -103,16 +107,21 @@ namespace HookedMethod
             generator.Emit(OpCodes.Ldc_I4, origMethod.GetParameters().Length);
             generator.Emit(OpCodes.Newarr, typeof(object));
             generator.Emit(OpCodes.Stloc, argsArr);
-            foreach (var e in origMethod.GetParameters()) {
-                generator.Emit(OpCodes.Ldloc, argsArr);
-                generator.Emit(OpCodes.Ldc_I4, e.Position);
-                generator.Emit(OpCodes.Ldarg, e.Position);
 
-                if (e.ParameterType.IsValueType) {
-                    generator.Emit(OpCodes.Box, e.ParameterType);
+            var pos = 0;
+
+            foreach (var e in parameters) {
+                generator.Emit(OpCodes.Ldloc, argsArr);
+                generator.Emit(OpCodes.Ldc_I4, pos);
+                generator.Emit(OpCodes.Ldarg, pos);
+
+                if (e.IsValueType) {
+                    generator.Emit(OpCodes.Box, e);
                 }
 
                 generator.Emit(OpCodes.Stelem, typeof(object));
+
+                pos++;
             }
 
             generator.Emit(OpCodes.Ldloc, argsArr);
