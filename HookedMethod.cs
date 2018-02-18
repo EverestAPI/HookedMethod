@@ -152,6 +152,7 @@ namespace HookedMethod
             Func<Type[], Type> getType;
             var isAction = ((MethodInfo)infoWithDef).ReturnType.Equals((typeof(void)));
             var types = ((MethodInfo)infoWithDef).GetParameters().Select(p => p.ParameterType);
+            if (!((MethodInfo) infoWithDef).Attributes.HasFlag(MethodAttributes.Static)) types = new[] {((MethodInfo) infoWithDef).DeclaringType}.Concat(types).ToArray();
 
             if (isAction) {
                 getType = Expression.GetActionType;
@@ -162,12 +163,10 @@ namespace HookedMethod
             
             var RTDetour = typeof(RuntimeDetour).GetMethods().Single(e => e.Name == "Detour" && e.GetParameters()[0].ParameterType == typeof(MethodBase) && e.GetParameters()[1].ParameterType == typeof(MethodBase) && e.IsGenericMethod).MakeGenericMethod(getType(types.ToArray()));
 
-            var rawDetour = generateRawDetour(detour, infoWithDef, trampoline);            
+            var rawDetour = generateRawDetour(detour, infoWithDef, trampoline);
             var rawTrampoline = RTDetour.Invoke(null, new object[] {((MethodBase) ((MethodInfo) infoWithDef)), rawDetour});
 
             trampoline.origMethod = new OriginalMethod((Delegate) rawTrampoline);
-
-            Console.WriteLine(rawDetour.Invoke(null, new object[] {3, 5}));
         }
     }
 }

@@ -19,9 +19,9 @@ public class main {
 		Console.WriteLine(mainInst.detouredMethod(3, 5));
 
 		Hook hookInst = new Hook(method, (hook, orig, args) => {
-			var (a, b) = args.As<int, int>();
+			var (self, a, b) = args.As<main, int, int>();
 
-			return orig.As<int>(a, b) + 1;
+			return orig.As<int>(self, a, b) + 1;
 		});
 
 		Console.WriteLine(mainInst.detouredMethod(3, 5));
