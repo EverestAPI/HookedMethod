@@ -322,3 +322,5 @@ ASALocalRun/
 # MSBuild Binary and Structured Log
 *.binlog
 
+# Mono.Cecil Binaries
+Mono.Cecil.0.10.0-beta7/
