@@ -43,7 +43,7 @@ namespace HookedMethod
                     passedArgs.Add(Expression.Convert(Expression.ArrayAccess(args, Expression.Constant(e.Position)), e.ParameterType));
                 }
 
-                var call = Expression.Call(method.Method, passedArgs);
+                var call = Expression.Invoke(Expression.Constant(method), passedArgs);
 
                 var convert = Expression.Convert(call, typeof(object));
 
