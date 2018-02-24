@@ -5,7 +5,7 @@
     <id>HookedMethod</id>
 
     <!-- The package version number that is used when resolving dependencies -->
-    <version>0.1.0-beta</version>
+    <version>0.2.0-beta</version>
 
     <!-- Authors contain text that appears directly on the gallery -->
     <authors>leo60228, EverestAPI</authors>
@@ -23,7 +23,7 @@
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
 
     <!-- Any details about this particular release -->
-    <releaseNotes>Initial Release</releaseNotes>
+    <releaseNotes>Fixed .Net Framework and VS2015</releaseNotes>
 
     <!-- The description can be used in package manager UI. Note that the
             nuget.org gallery uses information you add in the portal. -->
@@ -37,7 +37,8 @@
 
     <!-- Dependencies are automatically installed when the package is installed -->
     <dependencies>
-        <dependency id="Mono.Cecil" version="0.10.0-beta7" />
+	    <dependency id="Mono.Cecil" version="0.10.0-beta7" />
+	    <dependency id="System.ValueTuple" version="4.4.0" />
     </dependencies>
     </metadata>
 

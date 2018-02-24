@@ -56,6 +56,12 @@ namespace HookedMethod
             /// <param name="args">The arguments to be used.</param>
             /// <returns>The return value of the original method.</returns>
             public T As<T>(params object[] args) => (T) trampoline(args);
+
+            /// <summary>
+            /// Call an OriginalMethod, ignoring the return value.
+            /// </summary>
+            /// <param name="args">The arguments to be used.</param>
+            public void Invoke(params object[] args) => trampoline(args);
         }
 
         public class Parameters {
