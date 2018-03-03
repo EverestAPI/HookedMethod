@@ -2,7 +2,6 @@ using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HookedMethod;
-using Hook = HookedMethod.HookedMethod; // Create an alias for HookedMethod.
 
 public class main {
 	[MethodImpl(MethodImplOptions.NoInlining)] // This line may be automatically added by MonoMod in the future; ignore this for now. It fixes an issue where the patched method gets replaced by (in this example) 8 instead of calling the detour.

@@ -5,7 +5,7 @@
     <id>HookedMethod</id>
 
     <!-- The package version number that is used when resolving dependencies -->
-    <version>0.2.0-beta</version>
+    <version>0.3.0-beta</version>
 
     <!-- Authors contain text that appears directly on the gallery -->
     <authors>leo60228, EverestAPI</authors>
@@ -23,7 +23,7 @@
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
 
     <!-- Any details about this particular release -->
-    <releaseNotes>Fixed .Net Framework and VS2015</releaseNotes>
+    <releaseNotes>Fixed the Hook alias for HookedMethod, which prevents users from needing to specify HookedMethod.HookedMethod or aliasing it themselves</releaseNotes>
 
     <!-- The description can be used in package manager UI. Note that the
             nuget.org gallery uses information you add in the portal. -->

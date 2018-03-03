@@ -8,7 +8,9 @@ using MonoMod.Detour;
 
 namespace HookedMethod
 {
-    using Hook = HookedMethod;
+    public class Hook : HookedMethod {
+        public Hook(MethodInfoWithDef infoWithDef, Detour detour) : base(infoWithDef, detour) {}
+    }
 
     public class HookedMethod
     {
@@ -45,9 +47,9 @@ namespace HookedMethod
 
                 var call = Expression.Invoke(Expression.Constant(method), passedArgs);
 
-                var convert = Expression.Convert(call, typeof(object));
+                Expression returnValue = method.Method.ReturnType != typeof(void) ? (Expression) Expression.Convert(call, typeof(object)) : (Expression) Expression.Constant(null);
 
-                trampoline = Expression.Lambda<CompiledTrampoline>(convert, new[] {args}).Compile();
+                trampoline = Expression.Lambda<CompiledTrampoline>(returnValue, new[] {args}).Compile();
             }
 
             /// <summary>
@@ -103,7 +105,7 @@ namespace HookedMethod
             
             if (!origMethod.Attributes.HasFlag(MethodAttributes.Static)) parameters = new[] {origMethod.DeclaringType}.Concat(parameters).ToArray();
 
-            DynamicMethod dynamicDetour = new DynamicMethod("Hook", origMethod.ReturnType, parameters, true);
+            DynamicMethod dynamicDetour = new DynamicMethod("Hook", origMethod.ReturnType != typeof(void) ? origMethod.ReturnType : null, parameters, true);
             ILGenerator generator = dynamicDetour.GetILGenerator(1024);
     
             var argsArr = generator.DeclareLocal(typeof(object[]));
@@ -133,10 +135,10 @@ namespace HookedMethod
             generator.Emit(OpCodes.Ldloc, argsArr);
             generator.Emit(OpCodes.Call, typeof(HookedMethod).GetMethod("callCompiledDetour"));
 
-            if (origMethod.ReturnType.IsValueType) {
+            if (origMethod.ReturnType == typeof(void)) {
+                generator.Emit(OpCodes.Pop);
+            } else if (origMethod.ReturnType.IsValueType) {
                 generator.Emit(OpCodes.Unbox_Any, origMethod.ReturnType);
-            } else if (origMethod.ReturnType == typeof(void)) {
-                generator.Emit(OpCodes.Ldnull);
             } else {
                 generator.Emit(OpCodes.Isinst, origMethod.ReturnType);
             }
