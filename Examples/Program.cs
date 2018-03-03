@@ -1,3 +1,6 @@
+// This warning happens when you call a method on a reference that is always null in a context that may or may not be executed, which we do.
+#pragma warning disable CS1720
+
 using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
@@ -20,8 +23,8 @@ public class main {
 	}
 
 	public static void Main() {
-		MethodInfoWithDef instanceMethodInfo = MethodInfoWithDef.FromCall(() => (new main()).detouredMethod(default(int), default(int))); // Create a new main object and "call" the detoured method. The instantiation and call get converted by the compiler into a MethodInfoWithDef without actually being executed, so it has no side-effects.
-		MethodInfoWithDef staticMethodInfo = MethodInfoWithDef.FromCall(() => detouredStaticMethod(default(int), default(int))); // You can do the same thing for a static method.
+		MethodInfoWithDef instanceMethodInfo = MethodInfoWithDef.FromCall(() => default(main).detouredMethod(default(int), default(int))); // Create a default (a null reference of the type, in this case) and "call" the detoured method. The default is handled by the compiler, and the call gets converted by the compiler into a MethodInfoWithDef without actually being executed, so it has no NullReferenceException.
+		MethodInfoWithDef staticMethodInfo = MethodInfoWithDef.FromCall(() => detouredStaticMethod(default(int), default(int))); // You can do the same thing for a static method, but you don't have to default-initialize the class.
 		MethodInfoWithDef voidMethodInfo = MethodInfoWithDef.FromCall(() => detouredVoidMethod(default(int), default(int))); // You can do the same thing for a method with a void return type.
 
 		Console.WriteLine(((MethodInfo) instanceMethodInfo).Name); // Get the name of the instance method. This is just an example of MethodInfoWithDef.
