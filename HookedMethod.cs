@@ -47,7 +47,9 @@ namespace HookedMethod
 
                 var call = Expression.Invoke(Expression.Constant(method), passedArgs);
 
-                Expression returnValue = method.Method.ReturnType != typeof(void) ? (Expression) Expression.Convert(call, typeof(object)) : (Expression) Expression.Constant(null);
+                Expression returnValue = method.Method.ReturnType != typeof(void) ? 
+                    (Expression) Expression.Convert(call, typeof(object)) : 
+                    (Expression) Expression.Block(call, Expression.Constant(null));
 
                 trampoline = Expression.Lambda<CompiledTrampoline>(returnValue, new[] {args}).Compile();
             }
