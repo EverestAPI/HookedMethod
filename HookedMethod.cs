@@ -107,12 +107,11 @@ namespace HookedMethod
             
             if (!origMethod.Attributes.HasFlag(MethodAttributes.Static)) parameters = new[] {origMethod.DeclaringType}.Concat(parameters).ToArray();
 
-            DynamicMethod dynamicDetour = new DynamicMethod("Hook", origMethod.ReturnType != typeof(void) ? origMethod.ReturnType : null, parameters, true);
-            ILGenerator generator = dynamicDetour.GetILGenerator(1024);
+            DynamicMethod dynamicDetour = new DynamicMethod("Hook", origMethod.ReturnType, parameters, true);
+            ILGenerator generator = dynamicDetour.GetILGenerator();
     
             var argsArr = generator.DeclareLocal(typeof(object[]));
     
-            generator.Emit(OpCodes.Nop);
             generator.Emit(OpCodes.Ldstr, compiledDetourID.ToString());
             generator.Emit(OpCodes.Ldc_I4, parameters.Length);
             generator.Emit(OpCodes.Newarr, typeof(object));
