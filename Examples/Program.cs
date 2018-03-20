@@ -5,6 +5,7 @@ using System;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HookedMethod;
+using System.Diagnostics;
 
 public class main {
 	[MethodImpl(MethodImplOptions.NoInlining)] // This line may be automatically added by MonoMod in the future; ignore this for now. It fixes an issue where the patched method gets replaced by (in this example) 8 instead of calling the detour.
@@ -27,9 +28,9 @@ public class main {
 		MethodInfoWithDef staticMethodInfo = MethodInfoWithDef.FromCall(() => detouredStaticMethod(default(int), default(int))); // You can do the same thing for a static method, but you don't have to default-initialize the class.
 		MethodInfoWithDef voidMethodInfo = MethodInfoWithDef.FromCall(() => detouredVoidMethod(default(int), default(int))); // You can do the same thing for a method with a void return type.
 
-		Console.WriteLine(((MethodInfo) instanceMethodInfo).Name); // Get the name of the instance method. This is just an example of MethodInfoWithDef.
-		Console.WriteLine((new main()).detouredMethod(3, 5)); // Create a new main object, and show what it returns before it's detoured.
-		Console.WriteLine(detouredStaticMethod(2, 3)); // Show what the static method being detoured returns before being hooked.
+		Console.WriteLine("Name of the instance method: " + ((MethodInfo) instanceMethodInfo).Name); // Get the name of the instance method. This is just an example of MethodInfoWithDef.
+		Console.WriteLine("[0] 3 + 5 = " + (new main()).detouredMethod(3, 5)); // Create a new main object, and show what it returns before it's detoured.
+		Console.WriteLine("[0] 2 * 3 = " + detouredStaticMethod(2, 3)); // Show what the static method being detoured returns before being hooked.
 		detouredVoidMethod(1, 2); // Show what the void-returning method logs before being hooked.
 
 		Hook hookInst = new Hook(instanceMethodInfo, (hook, orig, args) => {
@@ -53,8 +54,21 @@ public class main {
 			return null; // Return null for a method that returns void.
 		});
 
-		Console.WriteLine((new main()).detouredMethod(3, 5)); // Show what the patched instance method now returns.
-		Console.WriteLine(detouredStaticMethod(2, 3)); // Show what the patched static method now returns.
+		Console.WriteLine("[1] 3 + 5 = " + (new main()).detouredMethod(3, 5)); // Show what the patched instance method now returns.
+		Console.WriteLine("[1] 2 * 3 = " + detouredStaticMethod(2, 3)); // Show what the patched static method now returns.
 		detouredVoidMethod(1, 2); // Show what the patched void-returning method now returns.
-	}
+
+        // Layer a hook on top of another hook.
+        Hook hookInstLayered = new Hook(instanceMethodInfo, (hook, orig, args) => {
+            var (self, a, b) = args.As<main, int, int>(); // Get the parameters and the instance.
+
+            return orig.As<int>(self, a, b) + 1; // Forward everything to the original method.
+        });
+        Console.WriteLine("[2] 3 + 5 = " + (new main()).detouredMethod(3, 5)); // Show what the patched instance method now returns.
+
+        if (Debugger.IsAttached) {
+            Console.WriteLine("Press any key to exit.");
+            Console.ReadKey();
+        }
+    }
 }

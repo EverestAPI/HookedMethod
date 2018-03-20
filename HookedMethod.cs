@@ -37,6 +37,9 @@ namespace HookedMethod
             /// </summary>
             /// <param name="del">The method being called.</param>
             internal OriginalMethod(Delegate method) {
+                if (method == null)
+                    return;
+
                 var args = Expression.Parameter(typeof(object[]), "args");
 
                 List<Expression> passedArgs = new List<Expression>();
@@ -59,13 +62,26 @@ namespace HookedMethod
             /// </summary>
             /// <param name="args">The arguments to be used.</param>
             /// <returns>The return value of the original method.</returns>
-            public T As<T>(params object[] args) => (T) trampoline(args);
+            public virtual T As<T>(params object[] args) => (T) trampoline(args);
 
             /// <summary>
             /// Call an OriginalMethod, ignoring the return value.
             /// </summary>
             /// <param name="args">The arguments to be used.</param>
-            public void Invoke(params object[] args) => trampoline(args);
+            public virtual void Invoke(params object[] args) => trampoline(args);
+        }
+
+        internal class InbetweenMethod : OriginalMethod {
+            CompiledDetour previousDetour;
+
+            internal InbetweenMethod(CompiledDetour previousDetour)
+                : base(null) {
+                this.previousDetour = previousDetour;
+            }
+
+            public override T As<T>(params object[] args) => (T) previousDetour(args);
+
+            public override void Invoke(params object[] args) => previousDetour(args);
         }
 
         public class Parameters {
@@ -86,23 +102,18 @@ namespace HookedMethod
 
         public delegate object CompiledDetour(params object[] args);
     
-        static Dictionary<Guid, CompiledDetour> compiledDetoursByID = new Dictionary<Guid, CompiledDetour>();
+        static Dictionary<MethodBase, Stack<CompiledDetour>> compiledDetoursByID = new Dictionary<MethodBase, Stack<CompiledDetour>>();
     
-        public static object callCompiledDetour(string id, params object[] args) {
-            return compiledDetoursByID[Guid.Parse(id)](args);
+        public static object callCompiledDetour(MethodBase id, params object[] args) {
+            Stack<CompiledDetour> compiledDetours = compiledDetoursByID[id];
+            return compiledDetours.Peek()(args);
         }
     
         CompiledDetour compileDetour(Detour detour, OriginalMethodContainer original) {
             return args => detour(this, original.origMethod, new Parameters(args));
         }
 
-        MethodBase generateRawDetour(Detour detour, MethodInfo origMethod, OriginalMethodContainer trampoline) {
-            CompiledDetour compiledDetour = compileDetour(detour, trampoline);
- 
-            var compiledDetourID = Guid.NewGuid();
-
-            compiledDetoursByID[compiledDetourID] = compiledDetour;
-    
+        MethodInfo generateRawDetour(MethodInfo origMethod, OriginalMethodContainer trampoline) {
             var parameters = origMethod.GetParameters().Select(e => e.ParameterType).ToArray();
             
             if (!origMethod.Attributes.HasFlag(MethodAttributes.Static)) parameters = new[] {origMethod.DeclaringType}.Concat(parameters).ToArray();
@@ -111,8 +122,10 @@ namespace HookedMethod
             ILGenerator generator = dynamicDetour.GetILGenerator();
     
             var argsArr = generator.DeclareLocal(typeof(object[]));
-    
-            generator.Emit(OpCodes.Ldstr, compiledDetourID.ToString());
+
+            generator.Emit(OpCodes.Ldtoken, origMethod);
+            generator.Emit(OpCodes.Call, typeof(MethodBase).GetMethod("GetMethodFromHandle", new Type[] { typeof(RuntimeMethodHandle) }));
+
             generator.Emit(OpCodes.Ldc_I4, parameters.Length);
             generator.Emit(OpCodes.Newarr, typeof(object));
             generator.Emit(OpCodes.Stloc, argsArr);
@@ -158,6 +171,18 @@ namespace HookedMethod
         public HookedMethod(MethodInfoWithDef infoWithDef, Detour detour) {
             var trampoline = new OriginalMethodContainer(null);
 
+            CompiledDetour compiledDetour = compileDetour(detour, trampoline);
+
+            Stack<CompiledDetour> history;
+            if (!compiledDetoursByID.TryGetValue(infoWithDef, out history)) {
+                compiledDetoursByID[infoWithDef] = history = new Stack<CompiledDetour>();
+            } else {
+                trampoline.origMethod = new InbetweenMethod(history.Peek());
+            }
+            history.Push(compiledDetour);
+            if (history.Count > 1)
+                return;
+
             Func<Type[], Type> getType;
             var isAction = ((MethodInfo)infoWithDef).ReturnType.Equals((typeof(void)));
             var types = ((MethodInfo)infoWithDef).GetParameters().Select(p => p.ParameterType);
@@ -170,9 +195,9 @@ namespace HookedMethod
                 types = types.Concat(new[] { ((MethodInfo)infoWithDef).ReturnType });
             }
             
-            var RTDetour = typeof(RuntimeDetour).GetMethods().Single(e => e.Name == "Detour" && e.GetParameters()[0].ParameterType == typeof(MethodBase) && e.GetParameters()[1].ParameterType == typeof(MethodBase) && e.IsGenericMethod).MakeGenericMethod(getType(types.ToArray()));
+            var rawDetour = generateRawDetour(infoWithDef, trampoline);
 
-            var rawDetour = generateRawDetour(detour, infoWithDef, trampoline);
+            var RTDetour = typeof(RuntimeDetour).GetMethods().Single(e => e.Name == "Detour" && e.GetParameters()[0].ParameterType == typeof(MethodBase) && e.GetParameters()[1].ParameterType == typeof(MethodBase) && e.IsGenericMethod).MakeGenericMethod(getType(types.ToArray()));
             var rawTrampoline = RTDetour.Invoke(null, new object[] {((MethodBase) ((MethodInfo) infoWithDef)), rawDetour});
 
             trampoline.origMethod = new OriginalMethod((Delegate) rawTrampoline);
