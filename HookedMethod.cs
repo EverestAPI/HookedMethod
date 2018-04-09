@@ -5,6 +5,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
 using MonoMod.Detour;
+using MonoMod.RuntimeDetour;
 
 namespace HookedMethod
 {
@@ -103,6 +104,7 @@ namespace HookedMethod
         public delegate object CompiledDetour(params object[] args);
     
         static Dictionary<MethodBase, Stack<CompiledDetour>> compiledDetoursByID = new Dictionary<MethodBase, Stack<CompiledDetour>>();
+        static Dictionary<MethodBase, NativeDetour> nativeDetours = new Dictionary<MethodBase, NativeDetour>();
     
         public static object callCompiledDetour(MethodBase id, params object[] args) {
             Stack<CompiledDetour> compiledDetours = compiledDetoursByID[id];
@@ -183,6 +185,8 @@ namespace HookedMethod
             if (history.Count > 1)
                 return;
 
+            // The first hook needs to set up the actual NativeDetour, detouring the original method into HookedMethod.
+
             Func<Type[], Type> getType;
             var isAction = ((MethodInfo)infoWithDef).ReturnType.Equals((typeof(void)));
             var types = ((MethodInfo)infoWithDef).GetParameters().Select(p => p.ParameterType);
@@ -196,11 +200,14 @@ namespace HookedMethod
             }
             
             var rawDetour = generateRawDetour(infoWithDef, trampoline);
+            var nativeDetour = new NativeDetour(infoWithDef, rawDetour);
+            var rawTrampolineType = getType(types.ToArray());
+            var rawTrampoline = nativeDetour
+                .GenerateTrampoline(rawTrampolineType.GetMethod("Invoke"))
+                .CreateDelegate(rawTrampolineType);
 
-            var RTDetour = typeof(RuntimeDetour).GetMethods().Single(e => e.Name == "Detour" && e.GetParameters()[0].ParameterType == typeof(MethodBase) && e.GetParameters()[1].ParameterType == typeof(MethodBase) && e.IsGenericMethod).MakeGenericMethod(getType(types.ToArray()));
-            var rawTrampoline = RTDetour.Invoke(null, new object[] {((MethodBase) ((MethodInfo) infoWithDef)), rawDetour});
-
-            trampoline.origMethod = new OriginalMethod((Delegate) rawTrampoline);
+            nativeDetours[infoWithDef] = nativeDetour;
+            trampoline.origMethod = new OriginalMethod(rawTrampoline);
         }
     }
 }
