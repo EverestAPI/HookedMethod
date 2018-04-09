@@ -4,7 +4,6 @@ using System.Linq;
 using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
-using MonoMod.Detour;
 using MonoMod.RuntimeDetour;
 
 namespace HookedMethod
