@@ -5,6 +5,7 @@ using System.Linq.Expressions;
 using System.Reflection;
 using System.Reflection.Emit;
 using MonoMod.RuntimeDetour;
+using MMDetour = MonoMod.RuntimeDetour.Detour;
 
 namespace HookedMethod
 {
@@ -103,7 +104,7 @@ namespace HookedMethod
         public delegate object CompiledDetour(params object[] args);
     
         static Dictionary<MethodBase, Stack<CompiledDetour>> compiledDetoursByID = new Dictionary<MethodBase, Stack<CompiledDetour>>();
-        static Dictionary<MethodBase, NativeDetour> nativeDetours = new Dictionary<MethodBase, NativeDetour>();
+        static Dictionary<MethodBase, IDetour> nativeDetours = new Dictionary<MethodBase, IDetour>();
     
         public static object callCompiledDetour(MethodBase id, params object[] args) {
             Stack<CompiledDetour> compiledDetours = compiledDetoursByID[id];
@@ -199,10 +200,10 @@ namespace HookedMethod
             }
             
             var rawDetour = generateRawDetour(infoWithDef, trampoline);
-            var nativeDetour = new NativeDetour(infoWithDef, rawDetour);
+            var nativeDetour = new MMDetour(infoWithDef, rawDetour);
             var rawTrampolineType = getType(types.ToArray());
-            var rawTrampoline = nativeDetour
-                .GenerateTrampoline(rawTrampolineType.GetMethod("Invoke"))
+            var rawTrampoline = ((DynamicMethod) nativeDetour
+                .GenerateTrampoline(rawTrampolineType.GetMethod("Invoke")))
                 .CreateDelegate(rawTrampolineType);
 
             nativeDetours[infoWithDef] = nativeDetour;
