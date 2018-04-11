@@ -71,10 +71,6 @@
       <Project>{1991750c-37b1-4429-86f7-2e748fcc576c}</Project>
       <Name>HookedMethod</Name>
     </ProjectReference>
-    <ProjectReference Include="..\MonoMod\MonoMod.csproj">
-      <Project>{8a17c958-5c33-4035-af76-f94a3aa2dc4f}</Project>
-      <Name>MonoMod</Name>
-    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <Target Name="EnsureNuGetPackageBuildImports" BeforeTargets="PrepareForBuild">
